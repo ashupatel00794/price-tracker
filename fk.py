@@ -65,5 +65,27 @@ def tg(text):
         requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
                       data={"chat_id": TG_CHAT, "text": text[:4000], "disable_web_page_preview": True}, timeout=15)
 
-# end of tg
+# end of tgdef run_once():
+    alerts, counts = [], []
+    for cat, q in CATEGORIES.items():
+        try:
+            items = fetch(q)
+        except Exception as e:
+            counts.append(f"{cat}: ERROR {e}"); continue
+        counts.append(f"{cat}: {len(items)} items")
+        for pid, title, price, link in items:
+            row = db.execute("SELECT price FROM fk WHERE pid=?", (pid,)).fetchone()
+            if row and row[0] > 0 and (row[0] - price) / row[0] * 100 >= DROP_PCT:
+                pct = (row[0] - price) / row[0] * 100
+                alerts.append(f"🔻 {pct:.0f}% sasta | {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\nhttps://www.flipkart.com{link}")
+            db.execute("INSERT OR REPLACE INTO fk(pid,title,price) VALUES(?,?,?)", (pid, title, price))
+        db.commit()
+        time.sleep(random.uniform(4, 9))
+    if alerts:
+        tg("Flipkart price drops:\n\n" + "\n\n".join(alerts[:10]))
+    if os.getenv("STATUS", "1") == "1":
+        tg("Flipkart check done:\n" + "\n".join(counts))
+
+if __name__ == "__main__":
+    run_once()
 # end of parse
