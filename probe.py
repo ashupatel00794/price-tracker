@@ -3,13 +3,14 @@ import os, re, requests
 H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36",
      "Accept-Language": "en-US,en;q=0.9"}
 t = requests.get("https://www.vijaysales.com/c/laptops", headers=H, timeout=25).text
-links = list(dict.fromkeys(re.findall(r'(/p/[^"#?\\]+)', t)))
-out = [f"laptops links {len(links)}, price keys {t.count(chr(34) + 'price' + chr(34))}"]
-for u in links[1:3]:
-    i = t.find(u)
-    out.append("--- " + t[max(0, i - 250):i + 450].replace("\n", " "))
-msg = "\n".join(out)[:3800]
-print(msg)
-tok, chat = os.getenv("TG_TOKEN"), os.getenv("TG_CHAT")
-if tok and chat:
-    requests.post(f"https://api.telegram.org/bot{tok}/sendMessage", data={"chat_id": chat, "text": msg}, timeout=15)
+print("SIZE", len(t))
+print("SCRIPTS", [(m.group(1)[:40], len(m.group(2))) for m in re.finditer(r"<script([^>]*)>(.*?)</script>", t, re.S) if len(m.group(2)) > 20000])
+for pid in ["261462", "261460"]:
+    for n, m in enumerate(re.finditer(pid, t)):
+        if n >= 4:
+            break
+        print(f"PID {pid} #{n} @{m.start()}:", t[max(0, m.start() - 200):m.start() + 400].replace("\n", " "))
+for n, m in enumerate(re.finditer(r'"price"', t)):
+    if n >= 4:
+        break
+    print(f"PRICE #{n} @{m.start()}:", t[max(0, m.start() - 250):m.start() + 250].replace("\n", " "))
