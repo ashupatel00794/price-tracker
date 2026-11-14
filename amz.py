@@ -49,8 +49,9 @@ def parse(html):
 def tg(text):
     print(text)
     if TG_TOKEN and TG_CHAT:
-        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+        r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
                       data={"chat_id": TG_CHAT, "text": text[:4000], "disable_web_page_preview": True}, timeout=15)
+        print("TG", r.status_code, r.text[:160])
 
 
 def run_once():

@@ -1,11 +1,4 @@
-import re, requests
+import amz, vs
 
-H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36",
-     "Accept-Language": "en-IN,en;q=0.9", "Accept": "text/html,application/xhtml+xml"}
-for p in ["/gp/bestsellers/electronics/92071051031", "/gp/bestsellers/electronics/1389401031"]:
-    t = requests.get("https://www.amazon.in" + p, headers=H, timeout=25).text
-    seen = []
-    for h, n, name in re.findall(r'href="(/gp/bestsellers/[a-z-]+(?:/\d+)*/(\d+)[^"]*)"[^>]*>\s*([^<]{2,45})<', t):
-        if n not in seen:
-            seen.append(n)
-            print("AMZS", p[-12:], n, name.strip())
+amz.tg("Amazon test message (delivery check)\n🔻 sasta 5% | Amazon Laptop\nTest item\nAb ₹10,000 (pehle ₹10,500)\nhttps://www.amazon.in/dp/B098NS6PVG")
+vs.tg("Vijay Sales test message (delivery check)\n🔻 sasta 5% | Vijay Sales Laptop\nTest item\nAb ₹10,000 (pehle ₹10,500)\nhttps://www.vijaysales.com/p/259536/hp-laptop")
