@@ -1,5 +1,6 @@
 import os, re, sqlite3, time, random
 import requests
+import dedupe
 from bs4 import BeautifulSoup
 
 BASE = "https://www.vijaysales.com"
@@ -65,10 +66,11 @@ def run_once():
         counts.append(f"{cat}: {len(items)} items")
         for sku, title, price, link in items:
             row = db.execute("SELECT price FROM vs WHERE sku=?", (sku,)).fetchone()
-            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT:
+            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "vs:" + sku):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
                 alerts.append(f"{tag} {abs(pct):.0f}% | Vijay Sales {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{BASE}{link}")
+                dedupe.mark(db, "vs:" + sku)
             db.execute("INSERT OR REPLACE INTO vs(sku,title,price) VALUES(?,?,?)", (sku, title, price))
         db.commit()
         time.sleep(random.uniform(3, 6))

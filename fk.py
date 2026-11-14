@@ -1,5 +1,6 @@
 import os, re, sqlite3, time, random
 import requests
+import dedupe
 from bs4 import BeautifulSoup
 
 DROP_PCT = float(os.getenv("DROP_PCT", "15"))
@@ -78,10 +79,11 @@ def run_once():
         counts.append(f"{cat}: {len(items)} items")
         for pid, title, price, link in items:
             row = db.execute("SELECT price FROM fk WHERE pid=?", (pid,)).fetchone()
-            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT:
+            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "fk:" + pid):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
                 alerts.append(f"{tag} {abs(pct):.0f}% | {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\nhttps://www.flipkart.com{link}")
+                dedupe.mark(db, "fk:" + pid)
             db.execute("INSERT OR REPLACE INTO fk(pid,title,price) VALUES(?,?,?)", (pid, title, price))
         db.commit()
         time.sleep(random.uniform(4, 9))

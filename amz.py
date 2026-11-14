@@ -1,5 +1,6 @@
 import os, re, sqlite3, time, random
 import requests
+import dedupe
 from bs4 import BeautifulSoup
 
 BASE = "https://www.amazon.in"
@@ -75,10 +76,11 @@ def run_once():
             print("AMZ sample", cat, "|", items[0][1][:50], "|", items[0][2])
         for asin, title, price in items:
             row = db.execute("SELECT price FROM amz WHERE asin=?", (asin,)).fetchone()
-            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT:
+            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "amz:" + asin):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
                 alerts.append(f"{tag} {abs(pct):.0f}% | Amazon {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{BASE}/dp/{asin}")
+                dedupe.mark(db, "amz:" + asin)
             db.execute("INSERT OR REPLACE INTO amz(asin,title,price) VALUES(?,?,?)", (asin, title, price))
         db.commit()
         time.sleep(random.uniform(4, 8))
