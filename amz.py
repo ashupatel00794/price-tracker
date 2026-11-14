@@ -7,7 +7,7 @@ DROP_PCT = float(os.getenv("DROP_PCT", "15"))
 TG_TOKEN = os.getenv("TG_TOKEN", "")
 TG_CHAT = os.getenv("TG_CHAT", "")
 CATEGORIES = {
-    "Mobiles": "/gp/bestsellers/electronics/1389401031",
+    "Smartphone": "/gp/bestsellers/electronics/1389432031",
     "Laptop": "/gp/bestsellers/computers/1375424031",
     "Headphones": "/gp/bestsellers/electronics/1388921031",
     "Monitor": "/gp/bestsellers/computers/1375425031",
