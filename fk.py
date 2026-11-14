@@ -26,6 +26,7 @@ HEADERS = {
 }
 db = sqlite3.connect("fk.db")
 db.execute("CREATE TABLE IF NOT EXISTS fk(pid TEXT PRIMARY KEY, title TEXT, price REAL)")
+
 def parse(html):
     soup = BeautifulSoup(html, "html.parser")
     items, titles = {}, {}
@@ -54,18 +55,20 @@ def parse(html):
         if prices:
             items[pid] = (float(prices[0].replace(",", "")), a["href"].split("?")[0])
     return [(pid, titles.get(pid, pid)[:70], p, link) for pid, (p, link) in items.items()]
+
 def fetch(q):
     r = requests.get("https://www.flipkart.com/search", params={"q": q}, headers=HEADERS, timeout=25)
     if r.status_code != 200:
         raise RuntimeError(f"status {r.status_code}")
     return parse(r.text)
+
 def tg(text):
     print(text)
     if TG_TOKEN and TG_CHAT:
         requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
                       data={"chat_id": TG_CHAT, "text": text[:4000], "disable_web_page_preview": True}, timeout=15)
 
-# end of tgdef run_once():
+def run_once():
     alerts, counts = [], []
     for cat, q in CATEGORIES.items():
         try:
@@ -88,4 +91,3 @@ def tg(text):
 
 if __name__ == "__main__":
     run_once()
-# end of parse
