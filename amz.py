@@ -58,10 +58,15 @@ def run_once():
     alerts, counts = [], []
     for cat, path in CATEGORIES.items():
         try:
-            r = requests.get(BASE + path, headers=HEADERS, timeout=25)
-            if r.status_code != 200:
-                raise RuntimeError(f"status {r.status_code}")
-            items = parse(r.text)
+            items = []
+            for attempt in range(3):
+                r = requests.get(BASE + path, headers=HEADERS, timeout=25)
+                if r.status_code != 200:
+                    raise RuntimeError(f"status {r.status_code}")
+                items = parse(r.text)
+                if items:
+                    break
+                time.sleep(random.uniform(5, 9))
         except Exception as e:
             counts.append(f"{cat}: ERROR {str(e)[:60]}")
             continue
