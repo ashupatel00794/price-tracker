@@ -78,14 +78,15 @@ def run_once():
         counts.append(f"{cat}: {len(items)} items")
         for pid, title, price, link in items:
             row = db.execute("SELECT price FROM fk WHERE pid=?", (pid,)).fetchone()
-            if row and row[0] > 0 and (row[0] - price) / row[0] * 100 >= DROP_PCT:
+            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT:
                 pct = (row[0] - price) / row[0] * 100
-                alerts.append(f"🔻 {pct:.0f}% sasta | {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\nhttps://www.flipkart.com{link}")
+                tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
+                alerts.append(f"{tag} {abs(pct):.0f}% | {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\nhttps://www.flipkart.com{link}")
             db.execute("INSERT OR REPLACE INTO fk(pid,title,price) VALUES(?,?,?)", (pid, title, price))
         db.commit()
         time.sleep(random.uniform(4, 9))
-    if alerts:
-        tg("Flipkart price drops:\n\n" + "\n\n".join(alerts[:10]))
+    for i in range(0, min(len(alerts), 40), 8):
+        tg("Flipkart price changes:\n\n" + "\n\n".join(alerts[i:i + 8]))
     if os.getenv("STATUS", "1") == "1":
         tg("Flipkart check done:\n" + "\n".join(counts))
 
