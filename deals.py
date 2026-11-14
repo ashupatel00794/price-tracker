@@ -49,12 +49,13 @@ def notify(lines):
 
 def main():
     alerts = []
+    counts = []
     for cat, q in CATEGORIES.items():
         try:
             items = fetch(q)
         except Exception as e:
-            print("Error:", cat, e); continue
-        print(cat, "items:", len(items))
+            print("Error:", cat, e); counts.append(f"{cat}: BLOCKED/ERROR"); continue
+        print(cat, "items:", len(items)); counts.append(f"{cat}: {len(items)} items")
         for asin, title, price, mrp in items:
             row = db.execute("SELECT price FROM deals WHERE asin=?", (asin,)).fetchone()
             if row and row[0] > 0 and (row[0] - price) / row[0] * 100 >= DROP_PCT:
@@ -65,6 +66,9 @@ def main():
         time.sleep(random.uniform(4, 9))
     if alerts:
         notify(alerts)
+    if TG_TOKEN and TG_CHAT:
+        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+                      data={"chat_id": TG_CHAT, "text": "Deals check done:\n" + "\n".join(counts)}, timeout=15)
 
 if __name__ == "__main__":
     main()
