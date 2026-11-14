@@ -29,6 +29,13 @@ jobs:
           TG_CHAT: ${{ secrets.TG_CHAT }}
           STATUS: "0"
           DROP_PCT: "2"
+      - run: python amz.py
+        continue-on-error: true
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+          STATUS: "0"
+          DROP_PCT: "2"
       - name: Save price history
         run: |
           git config user.name "price-bot"
