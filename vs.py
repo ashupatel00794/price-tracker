@@ -7,40 +7,38 @@ BASE = "https://www.vijaysales.com"
 DROP_PCT = float(os.getenv("DROP_PCT", "15"))
 TG_TOKEN = os.getenv("TG_TOKEN", "")
 TG_CHAT = os.getenv("TG_CHAT", "")
-CATEGORIES = {
-    "Smartphone": "smartphones",
-    "iPhone": "iphones",
-    "Laptop": "laptops",
-    "Headphones": "headphones",
-    "Mouse": "mouse",
-    "Keyboard": "keyboards",
-    "SSD": "ssd",
-    "Hard Disk": "hard-disks",
-    "Pen Drive": "pen-drives",
-    "Monitor": "monitors",
-    "Desktop": "desktops",
+K = "bb8ef7667d38c04e8a81c80f4a43a998"
+SITE = "ss-unbxd-aapac-prod-vijaysales-magento33881704883825"
+API = f"https://search.unbxd.io/{K}/{SITE}/search"
+QUERIES = {
+    "Smartphone": "smartphone", "iPhone": "iphone", "Laptop": "laptop",
+    "Headphones": "headphones", "Earbuds": "earbuds", "Mouse": "mouse",
+    "Keyboard": "keyboard", "SSD": "ssd", "Hard Disk": "hard disk",
+    "Pen Drive": "pen drive", "Monitor": "monitor", "Desktop": "desktop",
+    "RAM": "ram", "Gaming": "gaming", "Cable": "cable",
 }
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-}
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36"}
 
 
-def parse(html):
-    soup = BeautifulSoup(html, "html.parser")
-    items = {}
-    for card in soup.select("div.product-card[data-child-sku]"):
-        sku = card["data-child-sku"]
-        a = card.select_one("a.product-card__link")
-        name = card.select_one(".product-name")
-        price = card.select_one(".discountedPrice")
-        if not (a and name and price):
-            continue
-        digits = re.sub(r"[^\d]", "", price.get_text(" ", strip=True))
-        if not digits or sku in items:
-            continue
-        items[sku] = (name.get_text(" ", strip=True)[:70], float(digits), a["href"].split("?")[0])
-    return [(sku, t, p, link) for sku, (t, p, link) in items.items()]
+def fetch(q, pages=3, rows=100):
+    out = {}
+    for pg in range(pages):
+        r = requests.get(API, params={"q": q, "rows": rows, "start": pg * rows}, headers=HEADERS, timeout=25)
+        r.raise_for_status()
+        prods = r.json()["response"]["products"]
+        for p in prods:
+            sku = str(p.get("uniqueId") or p.get("_root_") or "")
+            try:
+                price = float(p.get("price"))
+            except Exception:
+                continue
+            link = p.get("productUrl") or ""
+            title = str(p.get("title") or p.get("modelName") or "")[:70]
+            if sku and price > 0 and link and sku not in out:
+                out[sku] = (title, price, link)
+        if len(prods) < rows:
+            break
+    return [(k, t, pr, l) for k, (t, pr, l) in out.items()]
 
 
 def tg(text):
@@ -53,28 +51,25 @@ def tg(text):
 
 def run_once():
     db = sqlite3.connect("fk.db")
-    db.execute("CREATE TABLE IF NOT EXISTS vs(sku TEXT PRIMARY KEY, title TEXT, price REAL)")
+    db.execute("CREATE TABLE IF NOT EXISTS vs2(sku TEXT PRIMARY KEY, title TEXT, price REAL)")
     alerts, counts = [], []
-    for cat, slug in CATEGORIES.items():
+    for cat, slug in QUERIES.items():
         try:
-            r = requests.get(f"{BASE}/c/{slug}", headers=HEADERS, timeout=25)
-            if r.status_code != 200:
-                raise RuntimeError(f"status {r.status_code}")
-            items = parse(r.text)
+            items = fetch(slug)
         except Exception as e:
             counts.append(f"{cat}: ERROR {str(e)[:60]}")
             continue
         counts.append(f"{cat}: {len(items)} items")
         for sku, title, price, link in items:
-            row = db.execute("SELECT price FROM vs WHERE sku=?", (sku,)).fetchone()
-            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "vs:" + sku):
+            row = db.execute("SELECT price FROM vs2 WHERE sku=?", (sku,)).fetchone()
+            if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "vs2:" + sku):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
-                alerts.append(f"{tag} {abs(pct):.0f}% | Vijay Sales {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{BASE}{link}")
-                dedupe.mark(db, "vs:" + sku)
-            db.execute("INSERT OR REPLACE INTO vs(sku,title,price) VALUES(?,?,?)", (sku, title, price))
+                alerts.append(f"{tag} {abs(pct):.0f}% | Vijay Sales {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{link}")
+                dedupe.mark(db, "vs2:" + sku)
+            db.execute("INSERT OR REPLACE INTO vs2(sku,title,price) VALUES(?,?,?)", (sku, title, price))
         db.commit()
-        time.sleep(random.uniform(3, 6))
+        time.sleep(1)
     print("VS counts:", counts)
     for i in range(0, min(len(alerts), 40), 8):
         tg("Vijay Sales price changes:\n\n" + "\n\n".join(alerts[i:i + 8]))
