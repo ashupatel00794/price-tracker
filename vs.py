@@ -65,13 +65,13 @@ def run_once():
             if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "vs2:" + sku):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
-                alerts.append(f"{tag} {abs(pct):.0f}% | Vijay Sales {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{link}")
+                alerts.append(f"{tag} {abs(pct):.1f}% | Vijay Sales {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{link}")
                 dedupe.mark(db, "vs2:" + sku)
             db.execute("INSERT OR REPLACE INTO vs2(sku,title,price) VALUES(?,?,?)", (sku, title, price))
         db.commit()
         time.sleep(1)
     print("VS counts:", counts)
-    for i in range(0, min(len(alerts), 40), 8):
+    for i in range(0, min(len(alerts), 240), 8):
         tg("Vijay Sales price changes:\n\n" + "\n\n".join(alerts[i:i + 8]))
     if os.getenv("STATUS", "1") == "1":
         tg("Vijay Sales check done:\n" + "\n".join(counts))

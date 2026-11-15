@@ -58,10 +58,20 @@ def parse(html):
     return [(pid, titles.get(pid, pid)[:70], p, link) for pid, (p, link) in items.items()]
 
 def fetch(q):
-    r = requests.get("https://www.flipkart.com/search", params={"q": q}, headers=HEADERS, timeout=25)
-    if r.status_code != 200:
-        raise RuntimeError(f"status {r.status_code}")
-    return parse(r.text)
+    seen = {}
+    for pg in (1, 2, 3):
+        r = requests.get("https://www.flipkart.com/search", params={"q": q, "page": pg}, headers=HEADERS, timeout=25)
+        if r.status_code != 200:
+            if pg == 1:
+                raise RuntimeError(f"status {r.status_code}")
+            break
+        got = parse(r.text)
+        if not got:
+            break
+        for it in got:
+            seen.setdefault(it[0], it)
+        time.sleep(random.uniform(2, 4))
+    return list(seen.values())
 
 def tg(text):
     print(text)
@@ -83,12 +93,12 @@ def run_once():
             if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "fk:" + pid):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
-                alerts.append(f"{tag} {abs(pct):.0f}% | {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\nhttps://www.flipkart.com{link}")
+                alerts.append(f"{tag} {abs(pct):.1f}% | {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\nhttps://www.flipkart.com{link}")
                 dedupe.mark(db, "fk:" + pid)
             db.execute("INSERT OR REPLACE INTO fk(pid,title,price) VALUES(?,?,?)", (pid, title, price))
         db.commit()
         time.sleep(random.uniform(4, 9))
-    for i in range(0, min(len(alerts), 40), 8):
+    for i in range(0, min(len(alerts), 240), 8):
         tg("Flipkart price changes:\n\n" + "\n\n".join(alerts[i:i + 8]))
     if os.getenv("STATUS", "1") == "1":
         tg("Flipkart check done:\n" + "\n".join(counts))

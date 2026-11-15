@@ -61,14 +61,21 @@ def run_once():
     for cat, path in CATEGORIES.items():
         try:
             items = []
-            for attempt in range(3):
-                r = requests.get(BASE + path, headers=HEADERS, timeout=25)
-                if r.status_code != 200:
-                    raise RuntimeError(f"status {r.status_code}")
-                items = parse(r.text)
-                if items:
-                    break
-                time.sleep(random.uniform(5, 9))
+            seen = {}
+            for pg in (1, 2):
+                got = []
+                for attempt in range(3):
+                    r = requests.get(BASE + path, params={"pg": pg}, headers=HEADERS, timeout=25)
+                    if r.status_code != 200:
+                        raise RuntimeError(f"status {r.status_code}")
+                    got = parse(r.text)
+                    if got:
+                        break
+                    time.sleep(random.uniform(5, 9))
+                for it in got:
+                    seen.setdefault(it[0], it)
+                time.sleep(random.uniform(3, 6))
+            items = list(seen.values())
         except Exception as e:
             counts.append(f"{cat}: ERROR {str(e)[:60]}")
             continue
@@ -80,13 +87,13 @@ def run_once():
             if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "amz:" + asin):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
-                alerts.append(f"{tag} {abs(pct):.0f}% | Amazon {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{BASE}/dp/{asin}")
+                alerts.append(f"{tag} {abs(pct):.1f}% | Amazon {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{BASE}/dp/{asin}")
                 dedupe.mark(db, "amz:" + asin)
             db.execute("INSERT OR REPLACE INTO amz(asin,title,price) VALUES(?,?,?)", (asin, title, price))
         db.commit()
         time.sleep(random.uniform(4, 8))
     print("AMZ counts:", counts)
-    for i in range(0, min(len(alerts), 40), 8):
+    for i in range(0, min(len(alerts), 240), 8):
         tg("Amazon price changes:\n\n" + "\n\n".join(alerts[i:i + 8]))
     if os.getenv("STATUS", "1") == "1":
         tg("Amazon check done:\n" + "\n".join(counts))
