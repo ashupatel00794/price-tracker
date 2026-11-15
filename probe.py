@@ -1,24 +1,28 @@
-import re, time, requests
-from bs4 import BeautifulSoup
+import re, requests
+from urllib.parse import urljoin
 
 H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36",
      "Accept-Language": "en-IN,en;q=0.9"}
-def prices(html):
-    soup = BeautifulSoup(html, "html.parser")
-    out = {}
-    for c in soup.select("div.product-card[data-child-sku]"):
-        p = c.select_one(".discountedPrice")
-        if p:
-            out[c["data-child-sku"]] = re.sub(r"[^\d]", "", p.get_text(" ", strip=True))
-    return out, soup
-r1 = requests.get("https://www.vijaysales.com/c/laptops", headers=H, timeout=25)
-print("VJH", {k: v for k, v in r1.headers.items() if k.lower() in ("age", "cache-control", "cf-cache-status", "x-cache", "last-modified", "date", "etag", "server", "via", "x-served-by", "expires")})
-p1, soup = prices(r1.text)
-r2 = requests.get(f"https://www.vijaysales.com/c/laptops?nocache={int(time.time())}", headers=H, timeout=25)
-p2, _ = prices(r2.text)
-print("VJ same-vs-bust: n1", len(p1), "n2", len(p2), "diff", sum(1 for k in p1 if k in p2 and p1[k] != p2[k]))
-c = soup.select_one("div.product-card[data-child-sku]")
-print("VJ card attrs", {k: str(v)[:60] for k, v in c.attrs.items()})
-print("VJ price attrs", [(e.name, {k: str(v)[:40] for k, v in e.attrs.items() if k != 'class'}, e.get("class")) for e in c.select('[class*="rice"]')][:8])
-print("VJ sample prices", list(p1.items())[:6])
-print("VJ scripts w/ api", sorted(set(re.findall(r'https?://[^"\'\s]*(?:api|price|product)[^"\'\s]{0,60}', r1.text)))[:12])
+base = "https://www.vijaysales.com/c/laptops"
+html = requests.get(base, headers=H, timeout=25).text
+srcs = re.findall(r'<script[^>]+src="([^"]+)"', html)
+print("VJS scripts", len(srcs))
+srcs = [urljoin(base, s) for s in srcs]
+srcs += [urljoin(base, s) for s in re.findall(r'(?:href|src)="([^"]+\.js[^"]*)"', html) if urljoin(base, s) not in srcs]
+seen = 0
+for u in dict.fromkeys(srcs):
+    if "vijaysales" not in u and "adobe" not in u:
+        continue
+    try:
+        js = requests.get(u, headers=H, timeout=25).text
+    except Exception as e:
+        continue
+    hits = [m.start() for m in re.finditer(r"vsapimiddleware|adobeioruntime|/api/v1/web", js)]
+    pri = [m.start() for m in re.finditer(r"getPrice|price_by_sku|fetchPrice|priceApi|/price|special_price|selling_price", js)]
+    print(f"VJS {u[-70:]} len={len(js)} api_hits={len(hits)} price_hits={len(pri)}")
+    for i in (hits[:3] + pri[:2]):
+        print("VJS   ctx:", js[max(0, i - 120):i + 220].replace("\n", " "))
+    seen += 1
+    if seen > 25:
+        break
+print("VJS inline api", re.findall(r'adobeioruntime[^"\'\s<]{0,120}', html)[:6])
