@@ -16,6 +16,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      - run: python subs.py
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
       - run: python fk.py
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}

@@ -18,3 +18,16 @@ def recent(db, key):
 def mark(db, key):
     _init(db)
     db.execute("INSERT OR REPLACE INTO alerted(key, ts) VALUES(?, ?)", (key, time.time()))
+
+
+def chats():
+    """All Telegram chat ids: TG_CHAT secret (comma separated) + people who pressed Start."""
+    import sqlite3
+    ids = [c.strip() for c in os.getenv("TG_CHAT", "").split(",") if c.strip()]
+    try:
+        db = sqlite3.connect("fk.db")
+        db.execute("CREATE TABLE IF NOT EXISTS subs(chat TEXT PRIMARY KEY)")
+        ids += [r[0] for r in db.execute("SELECT chat FROM subs")]
+    except Exception:
+        pass
+    return list(dict.fromkeys(ids))
