@@ -76,9 +76,10 @@ def fetch(q):
 def tg(text):
     print(text)
     if TG_TOKEN and TG_CHAT:
-        r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                      data={"chat_id": TG_CHAT, "text": text[:4000], "disable_web_page_preview": True}, timeout=15)
-        print("TG", r.status_code, r.text[:160])
+        for chat in [c.strip() for c in TG_CHAT.split(",") if c.strip()]:
+            r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+                              data={"chat_id": chat, "text": text[:4000], "disable_web_page_preview": True}, timeout=15)
+            print("TG", r.status_code, r.text[:80])
 
 def run_once():
     alerts, counts = [], []
