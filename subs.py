@@ -19,8 +19,14 @@ def main():
     res = api("getUpdates", offset=off, timeout=0).get("result", [])
     for u in res:
         off = max(off, u["update_id"] + 1)
-        m = u.get("message") or {}
+        m = u.get("message") or u.get("channel_post") or {}
         chat = m.get("chat", {})
+        if chat.get("type") == "channel":
+            cid = str(chat["id"])
+            db.execute("INSERT OR IGNORE INTO subs(chat) VALUES(?)", (cid,))
+            api("sendMessage", chat_id=cid, text="Channel connected. Ab Amazon, Flipkart aur Vijay Sales ke price alerts yahan aayenge.")
+            print("SUBS channel added", cid)
+            continue
         if chat.get("type") != "private":
             continue
         cid = str(chat["id"])
