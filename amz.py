@@ -99,7 +99,7 @@ def run_once():
                         if sp not in known and len(todo) < 60:
                             known.add(sp)
                             todo.append((cat + " >", sp))
-                time.sleep(random.uniform(3, 6))
+                time.sleep(random.uniform(1.5, 3))
             items = list(seen.values())
         except Exception as e:
             counts.append(f"{cat}: ERROR {str(e)[:60]}")
@@ -116,7 +116,7 @@ def run_once():
                 dedupe.mark(db, "amz:" + asin)
             db.execute("INSERT OR REPLACE INTO amz(asin,title,price) VALUES(?,?,?)", (asin, title, price))
         db.commit()
-        time.sleep(random.uniform(4, 8))
+        time.sleep(random.uniform(2, 4))
     print("AMZ counts:", counts)
     for i in range(0, min(len(alerts), 240), 8):
         tg("Amazon price changes:\n\n" + "\n\n".join(alerts[i:i + 8]))
