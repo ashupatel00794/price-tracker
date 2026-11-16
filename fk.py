@@ -4,6 +4,8 @@ import dedupe
 from bs4 import BeautifulSoup
 
 DROP_PCT = float(os.getenv("DROP_PCT", "15"))
+OFFER_PCT = float(os.getenv("OFFER_PCT", "40"))
+EXTRA = {}  # pid -> (rating text, discount %)
 TG_TOKEN = os.getenv("TG_TOKEN", "")
 TG_CHAT = os.getenv("TG_CHAT", "")
 CATEGORIES = {
@@ -55,6 +57,10 @@ def parse(html):
             node = node.parent
         if prices:
             items[pid] = (float(prices[0].replace(",", "")), a["href"].split("?")[0])
+            txt = node.get_text(" ", strip=True)
+            rm = re.search(r"\b([1-5]\.\d)\s+([\d,]+)\s+Ratings", txt)
+            om = re.search(r"(\d{1,2})%\s*off", txt)
+            EXTRA[pid] = (f"⭐ {rm.group(1)} ({rm.group(2)} ratings)" if rm else "", int(om.group(1)) if om else 0)
     return [(pid, titles.get(pid, pid)[:70], p, link) for pid, (p, link) in items.items()]
 
 def fetch(q):
@@ -82,7 +88,7 @@ def tg(text):
             print("TG", r.status_code, r.text[:80])
 
 def run_once():
-    alerts, counts = [], []
+    alerts, counts, offers = [], [], []
     for cat, q in CATEGORIES.items():
         try:
             items = fetch(q)
@@ -94,11 +100,21 @@ def run_once():
             if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "fk:" + pid):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
-                alerts.append(f"{tag} {abs(pct):.1f}% | {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\nhttps://www.flipkart.com{link}")
+                alerts.append(f"{tag} {abs(pct):.1f}% | {cat}\n{title}\n{EXTRA.get(pid, ('', 0))[0]}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\nhttps://www.flipkart.com{link}")
                 dedupe.mark(db, "fk:" + pid)
+            off = EXTRA.get(pid, ("", 0))[1]
+            if dedupe.offer_new(db, "fk:" + pid, off, OFFER_PCT):
+                offers.append((off, pid, f"🔥 {off}% OFF | Flipkart {cat}\n{title}\n{EXTRA[pid][0]}\nPrice ₹{price:,.0f}\nhttps://www.flipkart.com{link}"))
             db.execute("INSERT OR REPLACE INTO fk(pid,title,price) VALUES(?,?,?)", (pid, title, price))
         db.commit()
         time.sleep(random.uniform(4, 9))
+    offers.sort(reverse=True)
+    top = offers[:40]
+    for off, pid, _ in top:
+        dedupe.offer_mark(db, "fk:" + pid, off)
+    db.commit()
+    for i in range(0, len(top), 8):
+        tg("Flipkart best offers:\n\n" + "\n\n".join(t[2] for t in top[i:i + 8]))
     for i in range(0, min(len(alerts), 240), 8):
         tg("Flipkart price changes:\n\n" + "\n\n".join(alerts[i:i + 8]))
     if os.getenv("STATUS", "1") == "1":

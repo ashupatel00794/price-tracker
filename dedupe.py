@@ -31,3 +31,18 @@ def chats():
     except Exception:
         pass
     return list(dict.fromkeys(ids))
+
+
+def offer_new(db, key, pct, thr):
+    """True only when an item newly crosses the offer threshold (or its offer grows by 5+ points)."""
+    db.execute("CREATE TABLE IF NOT EXISTS offers(key TEXT PRIMARY KEY, pct REAL)")
+    row = db.execute("SELECT pct FROM offers WHERE key=?", (key,)).fetchone()
+    if pct < thr:
+        if row:
+            db.execute("DELETE FROM offers WHERE key=?", (key,))
+        return False
+    return row is None or pct >= row[0] + 5
+
+
+def offer_mark(db, key, pct):
+    db.execute("INSERT OR REPLACE INTO offers(key, pct) VALUES(?, ?)", (key, pct))

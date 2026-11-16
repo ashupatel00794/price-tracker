@@ -18,6 +18,7 @@ CATEGORIES = {
     "Cables/Accessories": "/gp/bestsellers/computers/1375248031",
     "Shoes": "/gp/bestsellers/shoes/1983396031",
 }
+EXTRA = {}  # asin -> rating text
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36",
     "Accept-Language": "en-IN,en;q=0.9",
@@ -43,7 +44,20 @@ def parse(html):
         if not num:
             continue
         items[m.group(1)] = (title.get_text(" ", strip=True)[:70], float(num))
+        rm = re.search(r"(\d\.\d) out of 5 stars\s+([\d,]+)", li.get_text(" ", strip=True))
+        EXTRA[m.group(1)] = f"⭐ {rm.group(1)} ({rm.group(2)} reviews)" if rm else ""
     return [(asin, t, p) for asin, (t, p) in items.items()]
+
+
+def discover(html, own_path, cap=6):
+    """Child/sibling bestseller category links in the same department."""
+    dept = own_path.split("/")[3]
+    found = []
+    for m in re.finditer(r'href="(/gp/bestsellers/' + dept + r'/(\d+))', html):
+        p = m.group(1)
+        if p != own_path and p not in found and not own_path.endswith(m.group(2)):
+            found.append(p)
+    return found[:cap]
 
 
 def tg(text):
@@ -59,7 +73,12 @@ def run_once():
     db = sqlite3.connect("fk.db")
     db.execute("CREATE TABLE IF NOT EXISTS amz(asin TEXT PRIMARY KEY, title TEXT, price REAL)")
     alerts, counts = [], []
-    for cat, path in CATEGORIES.items():
+    todo = list(CATEGORIES.items())
+    known = {p for _, p in todo}
+    i = 0
+    while i < len(todo):
+        cat, path = todo[i]
+        i += 1
         try:
             items = []
             seen = {}
@@ -75,6 +94,11 @@ def run_once():
                     time.sleep(random.uniform(5, 9))
                 for it in got:
                     seen.setdefault(it[0], it)
+                if pg == 1 and i <= len(CATEGORIES) and r.text:
+                    for sp in discover(r.text, path):
+                        if sp not in known and len(todo) < 60:
+                            known.add(sp)
+                            todo.append((cat + " >", sp))
                 time.sleep(random.uniform(3, 6))
             items = list(seen.values())
         except Exception as e:
@@ -88,7 +112,7 @@ def run_once():
             if row and row[0] > 0 and abs(row[0] - price) / row[0] * 100 >= DROP_PCT and not dedupe.recent(db, "amz:" + asin):
                 pct = (row[0] - price) / row[0] * 100
                 tag = "🔻 sasta" if pct > 0 else "🔺 mehnga"
-                alerts.append(f"{tag} {abs(pct):.1f}% | Amazon {cat}\n{title}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{BASE}/dp/{asin}")
+                alerts.append(f"{tag} {abs(pct):.1f}% | Amazon {cat}\n{title}\n{EXTRA.get(asin, "")}\nAb ₹{price:,.0f} (pehle ₹{row[0]:,.0f})\n{BASE}/dp/{asin}")
                 dedupe.mark(db, "amz:" + asin)
             db.execute("INSERT OR REPLACE INTO amz(asin,title,price) VALUES(?,?,?)", (asin, title, price))
         db.commit()
